@@ -705,6 +705,10 @@ def build_parser(parent_subparsers: argparse._SubParsersAction) -> argparse.Argu
         "--notifier-profile", default=None,
         help="Profile gateway that owns/delivers this subscription (default: active profile)",
     )
+    p_nsub.add_argument(
+        "--chat-type", default="group",
+        help="Origin session chat type for wake injection (dm|group|channel|thread; default group)",
+    )
 
     p_nlist = sub.add_parser(
         "notify-list",
@@ -2441,6 +2445,7 @@ def _cmd_notify_subscribe(args: argparse.Namespace) -> int:
             platform=args.platform, chat_id=args.chat_id,
             thread_id=args.thread_id, user_id=args.user_id,
             notifier_profile=args.notifier_profile or _profile_author(),
+            chat_type=args.chat_type,
         )
     print(f"Subscribed {args.platform}:{args.chat_id}"
           + (f":{args.thread_id}" if args.thread_id else "")

@@ -1031,6 +1031,15 @@ def _maybe_auto_subscribe(conn: Any, task_id: str) -> bool:
             get_session_env("HERMES_SESSION_PROFILE", "")
             or os.environ.get("HERMES_PROFILE")
         )
+        # Persist the session's origin chat_type so the kanban wake injection
+        # (gateway/kanban_watchers.py) reconstructs the correct SessionSource
+        # instead of defaulting to "group" — a DM-originated orchestrator would
+        # otherwise be woken into a fresh group session. TUI fallback is "dm"
+        # (TUI is a 1:1 interface, so a DM-shaped session key is correct).
+        if platform == "tui":
+            chat_type = "dm"
+        else:
+            chat_type = get_session_env("HERMES_SESSION_CHAT_TYPE", "") or "group"
 
         # Lazy-import to keep the module-level dependency light
         from hermes_cli import kanban_db as _kb
@@ -1039,6 +1048,7 @@ def _maybe_auto_subscribe(conn: Any, task_id: str) -> bool:
             platform=platform, chat_id=chat_id,
             thread_id=thread_id, user_id=user_id,
             notifier_profile=notifier_profile,
+            chat_type=chat_type,
         )
         return True
     except Exception as _exc:

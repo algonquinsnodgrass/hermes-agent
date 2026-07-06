@@ -160,7 +160,7 @@ gateway:
       blocked:             "blocked; needs attention"
       status_default:      "status changed"
       status_joiner:       ", "
-      message:             "[kanban] Task {task_id} {status}.\nTitle: {title}\nAssignee: @{assignee}\nBoard: {board}\n\nCheck the result or decide the next step."
+      message:             "[kanban] Task {task_id} {status}.\nTitle: {title}\nAssignee: @{assignee}\nBoard: {board}{summary}\n\nCheck the result or decide the next step."
 
   personality:
     none_configured:       "`{path}/config.yaml` 中未設定人格"

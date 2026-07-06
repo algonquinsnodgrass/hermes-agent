@@ -336,6 +336,11 @@ class GatewayKanbanWatchersMixin:
                         continue
                     title = (task.title if task else sub["task_id"])[:120]
                     board_tag = f"[{board_slug}] " if board_slug else ""
+                    # Summary captured from the completed event (if any) so
+                    # the wake injection can carry it into the synthetic wake
+                    # message instead of waking the agent with a status string
+                    # and no verdict. Reset per delivery.
+                    _completed_summary_for_wake = ""
                     for ev in d["events"]:
                         kind = ev.kind
                         # Identity prefix: attribute terminal pings to the
@@ -350,17 +355,32 @@ class GatewayKanbanWatchersMixin:
                             # task.result for legacy rows written before
                             # runs shipped.
                             handoff = ""
+                            _full_summary = ""
                             payload_summary = None
                             if ev.payload and ev.payload.get("summary"):
                                 payload_summary = str(ev.payload["summary"])
                             if payload_summary:
-                                lines = payload_summary.strip().splitlines()
-                                h = lines[0][:200] if lines else payload_summary[:200]
+                                _full_summary = payload_summary.strip()
+                                # Preserve multi-line previews: join the full
+                                # summary up to 1000 chars. The prior code took
+                                # only lines[0][:200], which silently discarded
+                                # the rest of a structured handoff and left the
+                                # orchestrator with an unactionable fragment.
+                                # Telegram's message cap (~4096) gives ample
+                                # room for 1000 chars on the ping.
+                                h = _full_summary[:1000]
                                 handoff = f"\n{h}"
                             elif task and task.result:
-                                lines = task.result.strip().splitlines()
-                                r = lines[0][:160] if lines else task.result[:160]
+                                _full_summary = (task.result or "").strip()
+                                r = _full_summary[:1000]
                                 handoff = f"\n{r}"
+                            # Stash the full summary so the wake injection
+                            # (the `else` branch below) can carry it into the
+                            # synthetic wake message — without this, the
+                            # orchestrator is woken with a status string but
+                            # no verdict, forcing a manual `kanban log` lookup
+                            # on every completion.
+                            _completed_summary_for_wake = _full_summary[:1000]
                             msg = (
                                 f"✔ {board_tag}{tag}Kanban {sub['task_id']} done"
                                 f" — {title}{handoff}"
@@ -511,30 +531,24 @@ class GatewayKanbanWatchersMixin:
                                         title=_title,
                                         assignee=_assignee,
                                         board=board_slug,
+                                        summary=f"\n\n{_completed_summary_for_wake}" if _completed_summary_for_wake else "",
                                     )
                                     from gateway.session import SessionSource
                                     from gateway.platforms.base import MessageEvent, MessageType
-                                    # KNOWN LIMITATION (tracked follow-up): the
-                                    # subscription row does not persist the
-                                    # creator's chat_type, and it is not carried
-                                    # on the session-context bridge, so we cannot
-                                    # faithfully reconstruct the creator's real
-                                    # session key here. build_session_key() keys
-                                    # DMs (":dm:<chat_id>") on a wholly different
-                                    # shape from group/thread, so any hardcoded
-                                    # value mis-routes some creators. "group" is
-                                    # the least-surprising default for the
-                                    # dashboard/group flows this wake primarily
-                                    # serves; DM-originated creators are handled
-                                    # by the follow-up that stamps + persists
-                                    # chat_type end-to-end. handle_message()
-                                    # get_or_create_session's the target, so a
-                                    # mismatch degrades to "wake lands in a fresh
-                                    # group session" — never an exception.
+                                    # chat_type is now persisted on the
+                                    # subscription row (kanban_notify_subs.
+                                    # chat_type) and threaded through the
+                                    # session-context bridge. A DM-originated
+                                    # orchestrator session is woken into its
+                                    # own DM session key (dm:<chat_id>) instead
+                                    # of forking into a fresh group session.
+                                    # Legacy rows without chat_type default to
+                                    # "group" (the schema default), preserving
+                                    # the prior dashboard/group behavior.
                                     _source = SessionSource(
                                         platform=plat,
                                         chat_id=sub["chat_id"],
-                                        chat_type="group",
+                                        chat_type=sub.get("chat_type") or "group",
                                         thread_id=sub.get("thread_id") or None,
                                         user_id=sub.get("user_id"),
                                         profile=sub_profile or None,

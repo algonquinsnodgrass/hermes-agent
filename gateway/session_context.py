@@ -86,6 +86,14 @@ _SESSION_MESSAGE_ID: ContextVar = ContextVar("HERMES_SESSION_MESSAGE_ID", defaul
 
 _SESSION_PROFILE: ContextVar = ContextVar("HERMES_SESSION_PROFILE", default=_UNSET)
 
+# The chat_type of the session's origin source ("dm", "group", "channel",
+# "thread"). Persisted on kanban notification subscriptions so the wake
+# injection (gateway/kanban_watchers.py) can reconstruct the *correct*
+# SessionSource instead of hardcoding "group" — a DM-originated orchestrator
+# session would otherwise be woken into a fresh group session keyed on a
+# different shape (dm:<id> vs group:<id>:<user>), forking the conversation.
+_SESSION_CHAT_TYPE: ContextVar = ContextVar("HERMES_SESSION_CHAT_TYPE", default=_UNSET)
+
 # Whether the current session's delivery channel can route an ASYNC completion
 # back to the agent AFTER the current turn ends (i.e. wake a fresh turn).
 #
@@ -125,6 +133,7 @@ _VAR_MAP = {
     "HERMES_SESSION_ID": _SESSION_ID,
     "HERMES_SESSION_MESSAGE_ID": _SESSION_MESSAGE_ID,
     "HERMES_SESSION_PROFILE": _SESSION_PROFILE,
+    "HERMES_SESSION_CHAT_TYPE": _SESSION_CHAT_TYPE,
     "HERMES_CRON_AUTO_DELIVER_PLATFORM": _CRON_AUTO_DELIVER_PLATFORM,
     "HERMES_CRON_AUTO_DELIVER_CHAT_ID": _CRON_AUTO_DELIVER_CHAT_ID,
     "HERMES_CRON_AUTO_DELIVER_THREAD_ID": _CRON_AUTO_DELIVER_THREAD_ID,
@@ -160,6 +169,7 @@ def set_session_vars(
     profile: str = "",
     cwd: str = "",
     async_delivery: bool = True,
+    chat_type: str = "",
 ) -> list:
     """Set all session context variables and return reset tokens.
 
@@ -194,6 +204,7 @@ def set_session_vars(
         _SESSION_MESSAGE_ID.set(message_id),
         _SESSION_PROFILE.set(profile),
         _SESSION_ASYNC_DELIVERY.set(bool(async_delivery)),
+        _SESSION_CHAT_TYPE.set(chat_type),
     ]
     try:
         from agent.runtime_cwd import set_session_cwd
@@ -227,6 +238,7 @@ def clear_session_vars(tokens: list) -> None:
         _SESSION_ID,
         _SESSION_MESSAGE_ID,
         _SESSION_PROFILE,
+        _SESSION_CHAT_TYPE,
     ):
         var.set("")
     # Reset async-delivery capability to the "never set" sentinel rather than a

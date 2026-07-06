@@ -26,6 +26,72 @@ def kanban_home(tmp_path, monkeypatch):
     return home
 
 
+def test_notify_sub_chat_type_and_wake_summary_contract(kanban_home):
+    """Notify subscriptions persist chat_type and wake text renders summaries cleanly."""
+    conn = kb.connect()
+    try:
+        dm_task = kb.create_task(conn, title="dm origin", assignee="worker1")
+        group_task = kb.create_task(conn, title="group default", assignee="worker1")
+        kb.add_notify_sub(
+            conn,
+            task_id=dm_task,
+            platform="telegram",
+            chat_id="dm-chat",
+            chat_type="dm",
+        )
+        kb.add_notify_sub(
+            conn,
+            task_id=group_task,
+            platform="telegram",
+            chat_id="group-chat",
+        )
+        rows = {row["task_id"]: row for row in kb.list_notify_subs(conn)}
+    finally:
+        conn.close()
+
+    assert rows[dm_task]["chat_type"] == "dm"
+    assert rows[group_task]["chat_type"] == "group"
+
+    from agent.i18n import t
+
+    with_summary = t(
+        "gateway.kanban.wake.message",
+        lang="en",
+        task_id="T1",
+        status="completed",
+        title="test",
+        assignee="worker",
+        board="main",
+        summary="\n\nResult: OK",
+    )
+    assert with_summary == (
+        "[kanban] Task T1 completed.\n"
+        "Title: test\n"
+        "Assignee: @worker\n"
+        "Board: main\n\n"
+        "Result: OK\n\n"
+        "Check the result or decide the next step."
+    )
+
+    without_summary = t(
+        "gateway.kanban.wake.message",
+        lang="en",
+        task_id="T1",
+        status="completed",
+        title="test",
+        assignee="worker",
+        board="main",
+        summary="",
+    )
+    assert without_summary == (
+        "[kanban] Task T1 completed.\n"
+        "Title: test\n"
+        "Assignee: @worker\n"
+        "Board: main\n\n"
+        "Check the result or decide the next step."
+    )
+
+
 @pytest.mark.asyncio
 async def test_notifier_unsubs_after_completed_event(kanban_home):
     """
