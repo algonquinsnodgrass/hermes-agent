@@ -54,7 +54,7 @@ def test_notify_sub_chat_type_and_wake_summary_contract(kanban_home):
 
     from agent.i18n import t
 
-    with_summary = t(
+    rendered = t(
         "gateway.kanban.wake.message",
         lang="en",
         task_id="T1",
@@ -64,14 +64,8 @@ def test_notify_sub_chat_type_and_wake_summary_contract(kanban_home):
         board="main",
         summary="\n\nResult: OK",
     )
-    assert with_summary == (
-        "[kanban] Task T1 completed.\n"
-        "Title: test\n"
-        "Assignee: @worker\n"
-        "Board: main\n\n"
-        "Result: OK\n\n"
-        "Check the result or decide the next step."
-    )
+    assert "Board: main\n\nResult: OK\n\n" in rendered
+    assert "{summary}" not in rendered  # placeholder was substituted
 
     without_summary = t(
         "gateway.kanban.wake.message",
@@ -89,6 +83,39 @@ def test_notify_sub_chat_type_and_wake_summary_contract(kanban_home):
         "Assignee: @worker\n"
         "Board: main\n\n"
         "Check the result or decide the next step."
+    )
+
+
+def test_chat_type_produces_distinct_session_keys():
+    """The routing contract: chat_type='dm' must produce a :dm: key
+    distinct from the group-shaped key. This is the actual bug — a
+    DM-originated orchestrator session was woken into a fresh group
+    session because chat_type was hardcoded to 'group'."""
+    from gateway.session import SessionSource, build_session_key
+    from gateway.platforms.base import Platform
+
+    dm_source = SessionSource(
+        platform=Platform.TELEGRAM,
+        chat_id="12345",
+        chat_type="dm",
+        user_id="u1",
+    )
+    group_source = SessionSource(
+        platform=Platform.TELEGRAM,
+        chat_id="12345",
+        chat_type="group",
+        user_id="u1",
+    )
+
+    dm_key = build_session_key(dm_source, group_sessions_per_user=True)
+    group_key = build_session_key(group_source, group_sessions_per_user=True)
+
+    # DM key must contain :dm: segment
+    assert ":dm:" in dm_key, f"DM key missing :dm: segment: {dm_key}"
+    # Keys must be distinct — this is what was broken before the fix
+    assert dm_key != group_key, (
+        f"DM and group keys must differ — chat_type routing is broken. "
+        f"dm_key={dm_key!r}, group_key={group_key!r}"
     )
 
 

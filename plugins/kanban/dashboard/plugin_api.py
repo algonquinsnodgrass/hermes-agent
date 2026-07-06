@@ -1752,6 +1752,7 @@ def _configured_home_channels() -> list[dict]:
             "chat_id": hc.chat_id,
             "thread_id": hc.thread_id or "",
             "name": hc.name or "Home",
+            "chat_type": getattr(hc, "chat_type", "") or "",
         })
     # Stable order for deterministic UI — platform name alphabetical.
     result.sort(key=lambda r: r["platform"])
@@ -1839,6 +1840,7 @@ def subscribe_home(task_id: str, platform: str, board: Optional[str] = Query(Non
             chat_id=home["chat_id"],
             thread_id=home["thread_id"] or None,
             notifier_profile=_active_profile_name(),
+            chat_type=home.get("chat_type") or "",
         )
         return {"ok": True, "task_id": task_id, "home_channel": home}
     finally:

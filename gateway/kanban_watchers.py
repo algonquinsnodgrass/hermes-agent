@@ -535,16 +535,16 @@ class GatewayKanbanWatchersMixin:
                                     )
                                     from gateway.session import SessionSource
                                     from gateway.platforms.base import MessageEvent, MessageType
-                                    # chat_type is now persisted on the
-                                    # subscription row (kanban_notify_subs.
-                                    # chat_type) and threaded through the
-                                    # session-context bridge. A DM-originated
-                                    # orchestrator session is woken into its
-                                    # own DM session key (dm:<chat_id>) instead
-                                    # of forking into a fresh group session.
-                                    # Legacy rows without chat_type default to
-                                    # "group" (the schema default), preserving
-                                    # the prior dashboard/group behavior.
+                                    # chat_type is persisted on the subscription
+                                    # row (kanban_notify_subs.chat_type) and
+                                    # threaded from the session source, the
+                                    # /sethome handler, and the dashboard's
+                                    # subscribe_home. A DM-originated orchestrator
+                                    # session is woken into its own DM session key
+                                    # (dm:<chat_id>) instead of forking into a
+                                    # fresh group session. Legacy rows and
+                                    # env-var-configured home channels without
+                                    # chat_type default to "group".
                                     _source = SessionSource(
                                         platform=plat,
                                         chat_id=sub["chat_id"],
