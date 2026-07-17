@@ -1,3 +1,7 @@
+# Repository Intent
+
+This repository is a complete Rust rewrite of Hermes, intended to improve performance and minimize resource utilization.
+
 # Hermes Agent - Development Guide
 
 Instructions for AI coding assistants and developers working on the hermes-agent codebase.
